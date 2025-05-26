@@ -2,7 +2,7 @@
 <main-menu>
 	<div weight="bold" color="#ffffff" font="Arial" anchor_x="center" anchor_y="center" x=".5vw" y=".5vh" size="24">
 		<text text="Graph of energy cells" x=".5vw" y=".8vh" size="100px"/>
-		<text text="v0.2-dev" size="18" x=".04vw" y=".04vh"/>
+		<text text="v0.3-dev" size="18" x=".04vw" y=".04vh"/>
 		<list pady="1.5em" y="0.65vh" size="60" color="#cccccc">
 			<button text="Играть" command="start_game" hover_color="#00cc00"/>
 			<button text="Настройки" command="open_settings" hover_color="#2288cc"/>

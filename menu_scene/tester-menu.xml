@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <div weight="bold"><text weight="bold" color="#ffffff"
+     font="Arial" anchor_x="center" anchor_y="center"
+     text="v0.3-dev" size="18" x=".04vw" y=".04vh"/></div>
+    <text text='Тесты' size="100" y=".9vh"/>
+    <list pady="1.5em" x=".1vw" y="0.8vh" size="60" color="#888888" hover_color="#ffffff" anchor_x="left">
+        <button text="Debuger" command="debug-mod"/>
+		<button text="Поздoроваться" command="hello" />
+		<button text="Сцена в разработке" command="temp-dev-scene" />
+	</list>
+</root>

@@ -52,8 +52,8 @@ class UIElement(SceneEvents):
     def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
         x = element.get('x', ctx.get('x', '0.5vw'))
         y = element.get('y', ctx.get('y', '0.5vh'))
-        anchor_x = element.get('anchore_x', 'center')
-        anchor_y = element.get('anchore_y', 'center')
+        anchor_x = element.get('anchor_x', ctx.get('anchor_x', 'center'))
+        anchor_y = element.get('anchor_y', ctx.get('anchor_y', 'center'))
         
         self._x = self._parse_expression(x, ctx)
         self._y = self._parse_expression(y, ctx)
@@ -209,6 +209,14 @@ class Scene(SceneEvents):
     def execute(self, cmd):
         '''Исполнитель команд'''
         print(f'Была вызванна команда: <{cmd}>')
+
+    def get_record(self):
+        return
+    
+    def notify(self, data):
+        pass
+    
+   
 
 class SceneConstructor:
     TYPE_OF_THE_SCENE_CONFIGURATION_FILE = 'xml'
