@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <link style="test.json">
+    <text text="hello" contеnt="test-content-sistem"/>
+    </link>
+</root>

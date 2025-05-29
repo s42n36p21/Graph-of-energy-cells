@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <div font="Arial">
+    <div weight="bold">
+        <text text="Играть" x=".5vw" y=".8vh" size="100px"/>
+        <text text="v0.3-dev" size="18" x=".04vw" y=".04vh"/>
+    </div>
+    
+	<list size="60" pady="1.5em" y=".65vh"
+     hover_color="#848484" color="#cccccc" disable_color="#404040"
+     weight="bold"
+    >
+        <button text="На устройстве"
+         command="1" active="False"
+        />
+        <button text="Сетевая игра"
+         command="2" active="False"
+        />
+        <button text="Редактор"
+         command="3" active="False"
+        />
+        <button text="Обучение"
+         command="4" active="False"
+        />
+        <button text="Назад" hover_color="#cc0000" y="0.20vh"
+         command="cancel"
+        />
+    </list>
+    </div>
+</root>

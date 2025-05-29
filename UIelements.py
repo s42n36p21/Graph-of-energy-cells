@@ -1,6 +1,7 @@
 import re
 from typing import Any, Dict, Tuple
 import xml.etree.ElementTree as ET
+import json
 
 import pyglet
 
@@ -118,7 +119,7 @@ class TextUIElement(UIElement):
             y=self._y,
             anchor_x=self._anchor_x,
             anchor_y=self._anchor_y,
-            weight=ctx.get('weight', ctx.get('weight', 'normal'))    
+            weight=element.get('weight', ctx.get('weight', 'normal'))    
         )
     
     def draw(self):
@@ -126,14 +127,20 @@ class TextUIElement(UIElement):
             self.label.draw()
 
 class ColorManager:
-    def __init__(self, owner: 'ButtonUIElement', start_color, stop_color, step=15):
+    def __init__(self, owner: 'ButtonUIElement', start_color, stop_color, step=15, disable_color=None, active=True):
         self.start_color = start_color
         self.stop_color = stop_color
         self.step = step
         self.progress = 0
         self.owner = owner
+
+        self.disable_color = disable_color
+        self.active = True
         
     def update(self):
+        if not self.active:
+            self.owner.label.color = self.disable_color
+            return
         if self.owner.is_hovered:
             d = 1
         else:
@@ -143,6 +150,10 @@ class ColorManager:
         
         dist = self.progress / self.step
         self.owner.label.color = tuple([int((1-dist)*st + sp*dist) for st, sp in zip(self.start_color, self.stop_color)])
+
+    def set_active(self, active):
+        self.active = active
+
     
 class ButtonUIElement(TextUIElement):
     def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
@@ -150,12 +161,16 @@ class ButtonUIElement(TextUIElement):
         
         color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
         hover_color = self._parse_color(element.get('hover_color', ctx.get('hover_color', '#ffffff')))
-        
+        disable_color=self._parse_color(element.get('disable_color', ctx.get('disable_color', '#404040')))
+
         self.is_hovered = False
-        self.color_manager = ColorManager(self, color, hover_color)
+        self.color_manager = ColorManager(self, color, hover_color, disable_color=disable_color)
         
         self.scene: 'Scene' = extra.get('scene')
         self.command = element.get('command')
+
+        if element.get('active', ctx.get(element.get('active', 'True'))) == "False":
+            self.color_manager.set_active(False)
         
     def check_hover(self, x: int, y: int) -> bool:
         left = self._x - (self.label.content_width * {'left': 0, 'center': 0.5, 'right': 1}[self._anchor_x])
@@ -186,6 +201,7 @@ class Scene(SceneEvents):
     '''Сцена игры, на ней находяться все UI элементы'''
     def __init__(self, app):
         self.app = app
+        self.ctx = {}
 
     def update(self, dt):
         for unit in self.units:
@@ -194,6 +210,7 @@ class Scene(SceneEvents):
     def on_mouse_motion(self, x, y, dx, dy):
         for unit in self.units:
             unit.on_mouse_motion(x, y, dx, dy)
+            self.ctx.update({"on_mouse_motion": (x, y, dx, dy)})
     
     def draw(self):
         for unit in self.units:
@@ -211,10 +228,12 @@ class Scene(SceneEvents):
         print(f'Была вызванна команда: <{cmd}>')
 
     def get_record(self):
-        return
+        return self.ctx
     
-    def notify(self, data):
-        pass
+    def notify(self, **kwargs):
+        self.ctx.update(kwargs['ctx'])
+        if (task:=kwargs.get("on_mouse_motion")):
+            self.on_mouse_motion(*task)
     
    
 
@@ -260,7 +279,12 @@ class SceneConstructor:
             size = child.get('size')
             if size is not None:
                 child_ctx['em'] = str(UIElement._parse_expression(size, child_ctx))
-                
+            
+            if child.tag == 'link':
+                if style:=child.get('style'):
+                    ctx.update(self.load_style_from_json(style))
+                    print(ctx)
+
             self.create_unit_from_xml(child, ctx)
             
             if child.tag == 'list':
@@ -270,7 +294,7 @@ class SceneConstructor:
                     self.create_unit_from_xml(child_li, li_ctx)
                 return
             
-            self.create_units_from_xml(child, {**child_ctx, **child.attrib})
+            self.create_units_from_xml(child, {**ctx, **child_ctx, **child.attrib})
             
     def create_unit_from_xml(self, elem, ctx):
         child = elem
@@ -279,3 +303,8 @@ class SceneConstructor:
     
         elif child.tag == 'button':
             self.units.append(ButtonUIElement(child, ctx=ctx, extra={'scene': self.scene}))
+
+    
+    def load_style_from_json(self, style):
+        with open(style, 'r') as file:
+            return json.load(file)
