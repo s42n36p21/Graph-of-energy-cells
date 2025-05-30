@@ -38,6 +38,7 @@ class Debuger:
         self._start_time = time.time()
         self.update_counter = 0
         self.fps = FPS()
+        self.console = ''
 
         self.debug_text = pyglet.text.Label(
             text='',
@@ -51,6 +52,9 @@ class Debuger:
             multiline=True,  # Включаем многострочный режим
             width=self.app.width
         )
+    def log(self, *msg, sep=' ', end='\n'):
+        res = sep.join(msg) + '\n'
+        self.console += res 
     
     def debug(self, dt):
         self.update_counter += 1
@@ -63,7 +67,7 @@ class Debuger:
         objects_count = f"Objects: {len(self.app.scene.units)}"
         game_version = f"Version: 0.3-dev"
 
-        self.debug_text.text = f"{fps}\n{time_elapsed}\n{update_count}\n{scene_name}\n{objects_count}\n{game_version}"
+        self.debug_text.text = f"{fps}\n{time_elapsed}\n{update_count}\n{scene_name}\n{objects_count}\n{game_version}\n\n{self.console}"
 
     def draw(self):
         self.debug_text.draw()

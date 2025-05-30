@@ -45,7 +45,7 @@ class Scene(SceneEvents):
         
     def execute(self, cmd):
         '''Исполнитель команд'''
-        print(f'Была вызванна команда: <{cmd}>')
+        self.app.debuger.log(f'Была вызванна команда: <{cmd}>')
 
     def get_record(self):
         return self.ctx
@@ -94,6 +94,7 @@ class SceneConstructor:
             self.create_units_from_xml(root)
             
     def create_units_from_xml(self, root, ctx=None):
+        print(ctx)
         if ctx is None:
             ctx = {
                 'vw': self.window.width,
@@ -109,16 +110,16 @@ class SceneConstructor:
             if child.tag == 'link':
                 if style:=child.get('style'):
                     ctx.update(self.load_style_from_json(style))
-                    print(ctx)
-
             self.create_unit_from_xml(child, child_ctx)
             
             if child.tag == 'list':
                 for index, child_li in enumerate(child):
                     li_ctx = {**child_ctx, **child.attrib}
                     # Исправление синтаксиса для вычисления позиции
-                    li_ctx['y'] = f"{li_ctx.get('y', '0')} - {index}*({li_ctx.get('pady', '0')})"
+                    li_ctx['y'] = f"{li_ctx.get('y', '0.5vh')} - {index}*({li_ctx.get('pady', '0')})"
+                    li_ctx['x'] = f"{li_ctx.get('x', '0.5vw')} + {index}*({li_ctx.get('padx', '0')})"
                     self.create_unit_from_xml(child_li, li_ctx)
+                    self.create_units_from_xml(child_li, li_ctx)
                 continue  # Продолжаем обработку после списка
             
             # Рекурсивный вызов для дочерних элементов

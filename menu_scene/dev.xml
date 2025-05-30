@@ -3,6 +3,7 @@
     <list x="0.5vw" y="0.8vh" anchor_x="center" anchor_y="center" size="60" pady="2em">
         <!-- CheckButton -->
         <checkbutton 
+            size="30px"
             frame_color="#3498db" 
             color="#11ee11"
         />
@@ -10,6 +11,8 @@
         <!-- Entry -->
         <entry 
             text="Введите текст" 
+            font="Consolas"
+            size="48px"
             maxlen="20"
             color="#2ecc71"
             hover_color="#f1c40f"
@@ -28,7 +31,7 @@
         
         <!-- SelectorInRow -->
         <selector_in_row 
-            options="Опция 1|Опция 2|Опция 3" 
+            options="В попу|В пизду|В ротик" 
             default="1"
             color="#34495e"
             hover_color="#e67e22"

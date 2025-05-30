@@ -20,6 +20,7 @@ class MainMenu(Scene):
         elif cmd == 'open_settings':
             scene = SceneConstructor(self.app).construct_scene(f'{PATH}settings.xml', InfoMenu)
             self.app.switch_scene(scene)     
+            return 
         elif cmd == "open_info":
             scene = SceneConstructor(self.app).construct_scene(f'{PATH}info-menu.xml', InfoMenu)
             self.app.switch_scene(scene)
@@ -69,13 +70,13 @@ class DevMenu(InfoMenu):
                 f"Slider: {self.units[2].get()}",
                 f"Selector: {self.units[3].get()})"
             ]
-            print("\n".join(values))
+            self.app.debuger.log("\n".join(values))
 
 class TesterMenu(EscapeIsExit, WithCancel, Scene):
     '''Меню тестов приложений'''
     def execute(self, cmd):
         if cmd == 'hello':
-            print('Привет, пидор')
+            self.app.debuger.log('Привет, пидор')
             return
         elif cmd == 'temp-dev-scene':
             scene = SceneConstructor(self.app).construct_scene(f'{PATH}dev.xml', DevMenu)

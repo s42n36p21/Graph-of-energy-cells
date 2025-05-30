@@ -122,7 +122,10 @@ class TextUIElement(UIElement):
             anchor_y=self._anchor_y,
             weight=element.get('weight', ctx.get('weight', 'normal'))    
         )
-    
+        if not element.get('text', ''):
+            self.label.text = ' '
+            self.label.text = ''
+
     def draw(self):
         if self._visible:
             self.label.draw()
@@ -246,11 +249,20 @@ class CheckButton(UIElement):
             border_color=self.frame_color, batch=self.batch
         )
         
+        size = self.size
+         
+        dy = size / 10
+        abs_x = self._x - size//2
+        abs_y = self._y - size//2
+        x1, y1 =  abs_x + size / 5, abs_y + 3*size / 5 - dy
+        x2, y2 =  abs_x + 2*size / 5, abs_y + 2*size / 5 - dy
+        x3, y3 =  abs_x + 4*size / 5, abs_y + 4*size / 5 - dy
+        
         # Галочка (скрыта по умолчанию)
         self.check_vertices = [
-            pyglet.shapes.Line(x+5, y+self.size//2, x+self.size//3, y+5, 
+            pyglet.shapes.Line(x1,y1,x2+2,y2-2,
                                 5, color=self.color, batch=self.batch),
-            pyglet.shapes.Line(x+self.size//3, y+5, x+self.size-5, y+self.size-5,
+            pyglet.shapes.Line(x2,y2,x3,y3,
                                 5, color=self.color, batch=self.batch)
         ]
         
@@ -328,14 +340,17 @@ class Entry(TextUIElement):
         return test_label.content_width
         
     def on_mouse_press(self, x, y, button, modifiers):
+        
         # Активируем при клике в области элемента (учитываем высоту текста)
-        text_height = self.label.content_height/2
+        text_height = self.label.font_size/2
         text_half_width = self.line_width/2
+        
         
         self.active = (
             abs(x - self._x) < text_half_width and 
             abs(y - self._y) < text_height
         )
+     
         
         if self.active:
             rel_x = x - (self._x - self.label.content_width/2)
@@ -538,6 +553,16 @@ class RangeSlider(UIElement):
             self.height, color=self.frame_color
         ).draw()
         
+        pyglet.shapes.Circle(
+            self._x - self.width/2, self._y, self.height/2,
+            color=self.frame_color
+        ).draw()
+        
+        pyglet.shapes.Circle(
+            self._x + self.width/2, self._y, self.height/2,
+            color=self.frame_color
+        ).draw()
+        
         # Ползунок
         thumb_x = self._x - self.width/2 + self.value * self.width
         color = self.hover_color if self.hovered or self.dragging else self.color
@@ -546,6 +571,8 @@ class RangeSlider(UIElement):
             thumb_x, self._y, self.thumb_radius,
             color=color
         ).draw()
+        
+        
 
 
 class SelectorInRow(UIElement):
@@ -560,6 +587,7 @@ class SelectorInRow(UIElement):
             element.get('hover_color', ctx.get('hover_color', '#00ff00'))
         )
         
+        self.max_width = self._get_max_width(element, ctx)
         self.arrow_size = self._parse_expression(
             element.get('arrow_size', ctx.get('arrow_size', '1em')), ctx
         )
@@ -576,7 +604,24 @@ class SelectorInRow(UIElement):
             anchor_x='center',
             anchor_y='center'
         )
-        
+    
+    def _get_max_width(self, element, ctx):
+        temp_lable = pyglet.text.Label(
+            text=self.options[self.index],
+            font_name=element.get('font', ctx.get('font', 'Arial')),
+            font_size=self._parse_expression(element.get('size', ctx.get('size', '20')), ctx),
+            color=self.color,
+            x=self._x,
+            y=self._y,
+            anchor_x='center',
+            anchor_y='center'
+        )
+        max_width = 0
+        for text in self.options:
+            temp_lable.text = text
+            max_width = max(max_width, temp_lable._content_width)
+        return max_width
+    
     def on_mouse_press(self, x, y, button, modifiers):
         if self.left_hover:
             self.index = (self.index - 1) % len(self.options)
@@ -593,17 +638,17 @@ class SelectorInRow(UIElement):
     def on_mouse_motion(self, x, y, dx, dy):
         # Проверка левой стрелки
         left_triangle = [
-            (self._x - self.label.content_width/2 - self.arrow_size, self._y),
-            (self._x - self.label.content_width/2, self._y + self.arrow_size/2),
-            (self._x - self.label.content_width/2, self._y - self.arrow_size/2)
+            (self._x - self.label.font_size- self.max_width/2 - self.arrow_size, self._y),
+            (self._x - self.label.font_size- self.max_width/2, self._y + self.arrow_size/2),
+            (self._x - self.label.font_size- self.max_width/2, self._y - self.arrow_size/2)
         ]
         self.left_hover = self._point_in_triangle((x, y), left_triangle)
         
         # Проверка правой стрелки
         right_triangle = [
-            (self._x + self.label.content_width/2 + self.arrow_size, self._y),
-            (self._x + self.label.content_width/2, self._y + self.arrow_size/2),
-            (self._x + self.label.content_width/2, self._y - self.arrow_size/2)
+            (self._x + self.label.font_size + self.max_width/2 + self.arrow_size, self._y),
+            (self._x + self.label.font_size + self.max_width/2, self._y + self.arrow_size/2),
+            (self._x + self.label.font_size + self.max_width/2, self._y - self.arrow_size/2)
         ]
         self.right_hover = self._point_in_triangle((x, y), right_triangle)
     
@@ -628,10 +673,11 @@ class SelectorInRow(UIElement):
     def draw(self):
         # Левая стрелка
         left_color = self.hover_color if self.left_hover else self.color
+
         left_arrow = pyglet.shapes.Triangle(
-            x=self._x - self.label.content_width/2 - self.arrow_size, y=self._y,
-            x2=self._x - self.label.content_width/2, y2=self._y + self.arrow_size/2,
-            x3=self._x - self.label.content_width/2, y3=self._y - self.arrow_size/2,
+            x=self._x  - self.label.font_size- self.max_width/2- self.arrow_size, y=self._y,
+            x2=self._x - self.label.font_size - self.max_width/2, y2=self._y + self.arrow_size/2,
+            x3=self._x - self.label.font_size - self.max_width/2, y3=self._y - self.arrow_size/2,
             color=left_color[:3]
         )
         left_arrow.draw()
@@ -639,9 +685,9 @@ class SelectorInRow(UIElement):
         # Правая стрелка
         right_color = self.hover_color if self.right_hover else self.color
         right_arrow = pyglet.shapes.Triangle(
-            x=self._x + self.label.content_width/2 + self.arrow_size, y=self._y,
-            x2=self._x + self.label.content_width/2, y2=self._y - self.arrow_size/2,
-            x3=self._x + self.label.content_width/2, y3=self._y + self.arrow_size/2,
+            x=self._x  + self.label.font_size+ self.max_width/2 + self.arrow_size, y=self._y,
+            x2=self._x + self.label.font_size +self.max_width/2, y2=self._y - self.arrow_size/2,
+            x3=self._x + self.label.font_size +self.max_width/2, y3=self._y + self.arrow_size/2,
             color=right_color[:3]
         )
         right_arrow.draw()
