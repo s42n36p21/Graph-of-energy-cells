@@ -1,6 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root>
-    <link style="test.json">
-    <text text="hello" contеnt="test-content-sistem"/>
-    </link>
-</root>
+<test-scene>
+    <list x="0.5vw" y="0.8vh" anchor_x="center" anchor_y="center" size="60" pady="2em">
+        <!-- CheckButton -->
+        <checkbutton 
+            frame_color="#3498db" 
+            color="#11ee11"
+        />
+        
+        <!-- Entry -->
+        <entry 
+            text="Введите текст" 
+            maxlen="20"
+            color="#2ecc71"
+            hover_color="#f1c40f"
+            frame_color="#95a5a6"
+        />
+        
+        <!-- RangeSlider -->
+        <rangeslider 
+            width="300px" 
+            height="8px"
+            thumb_radius="15px"
+            color="#9b59b6"
+            hover_color="#e74c3c"
+            frame_color="#bdc3c7"
+        />
+        
+        <!-- SelectorInRow -->
+        <selector_in_row 
+            options="Опция 1|Опция 2|Опция 3" 
+            default="1"
+            color="#34495e"
+            hover_color="#e67e22"
+            arrow_size=".5em"
+        />
+        
+        <!-- Кнопка для демонстрации работы -->
+        <button 
+            text="Проверить значения" 
+            command="show_values"
+            hover_color="#1abc9c"
+        />
+    </list>
+</test-scene>

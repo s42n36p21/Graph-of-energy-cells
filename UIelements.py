@@ -1,7 +1,6 @@
 import re
 from typing import Any, Dict, Tuple
 import xml.etree.ElementTree as ET
-import json
 
 import pyglet
 
@@ -109,12 +108,14 @@ class TextUIElement(UIElement):
     """Простой однострочный текст, написанный на экране"""
     def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
         super().__init__(element, extra=extra, ctx=ctx)
-        
+
+        self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
+
         self.label = pyglet.text.Label(
             text=element.get('text', ''),
             font_name=element.get('font', ctx.get('font', )),
             font_size=self._parse_expression(element.get('size', ctx.get('size', '10')), ctx),
-            color=self._parse_color(element.get('color', ctx.get('color', '#ffffff'))),
+            color=self.color,
             x=self._x,
             y=self._y,
             anchor_x=self._anchor_x,
@@ -166,7 +167,7 @@ class ButtonUIElement(TextUIElement):
         self.is_hovered = False
         self.color_manager = ColorManager(self, color, hover_color, disable_color=disable_color)
         
-        self.scene: 'Scene' = extra.get('scene')
+        self.scene = extra.get('scene')
         self.command = element.get('command')
 
         if element.get('active', ctx.get(element.get('active', 'True'))) == "False":
@@ -197,114 +198,453 @@ class ButtonUIElement(TextUIElement):
         self.color_manager.update()
         super().draw()
 
-class Scene(SceneEvents):
-    '''Сцена игры, на ней находяться все UI элементы'''
-    def __init__(self, app):
-        self.app = app
-        self.ctx = {}
+class OutlinedRectangle:
+    def __init__(self, x, y, width, height, border=1, 
+                 color=(0, 0, 0, 0), border_color=(255, 255, 255, 255),
+                 batch=None):
 
-    def update(self, dt):
-        for unit in self.units:
-            unit.update(dt)
-    
-    def on_mouse_motion(self, x, y, dx, dy):
-        for unit in self.units:
-            unit.on_mouse_motion(x, y, dx, dy)
-            self.ctx.update({"on_mouse_motion": (x, y, dx, dy)})
+        
+        # Создаем 4 линии для контура прямоугольника
+        self.lines = [
+            # Нижняя линия
+            pyglet.shapes.Line(x, y, x + width, y, border, border_color, batch=batch),
+            # Правая линия
+            pyglet.shapes.Line(x + width, y, x + width, y + height, border, border_color, batch=batch),
+            # Верхняя линия
+            pyglet.shapes.Line(x + width, y + height, x, y + height, border, border_color, batch=batch),
+            # Левая линия
+            pyglet.shapes.Line(x, y + height, x, y, border, border_color, batch=batch)
+        ]
     
     def draw(self):
-        for unit in self.units:
-            unit.draw()
-    
+        """Метод для отрисовки прямоугольника"""
+        for line in self.lines:
+            line.draw()
+
+class CheckButton(UIElement):
+    """Флажок с галочкой внутри"""
+    def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
+        super().__init__(element, extra=extra, ctx=ctx)
+        
+        self.size = self._parse_expression(element.get('size', ctx.get('size', '20px')), ctx)
+        self.frame_color = self._parse_color(element.get('frame_color', ctx.get('frame_color', '#ffffff')))
+        self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
+        self.checked = False
+        
+        self.batch = pyglet.graphics.Batch()
+        self.vertices = []
+        self.check_vertices = []
+        
+    def _create_shape(self):
+        half = self.size / 2
+        x = self._x - {'left': 0, 'center': half, 'right': self.size}[self._anchor_x]
+        y = self._y - {'bottom': 0, 'center': half, 'top': self.size}[self._anchor_y]
+        
+        # Прямоугольник
+        self.vertices = OutlinedRectangle(
+            x, y, self.size, self.size, 5, color=(0,0,0,0), 
+            border_color=self.frame_color, batch=self.batch
+        )
+        
+        # Галочка (скрыта по умолчанию)
+        self.check_vertices = [
+            pyglet.shapes.Line(x+5, y+self.size//2, x+self.size//3, y+5, 
+                                5, color=self.color, batch=self.batch),
+            pyglet.shapes.Line(x+self.size//3, y+5, x+self.size-5, y+self.size-5,
+                                5, color=self.color, batch=self.batch)
+        ]
+        
+        for line in self.check_vertices:
+            line.visible = self.checked
+        
     def on_mouse_press(self, x, y, button, modifiers):
-        for unit in self.units:
-            unit.on_mouse_press(x, y, button, modifiers)
-    
-    def attach(self, units):
-        self.units = units
+        half = self.size / 2
+        btn_x = self._x - {'left': 0, 'center': half, 'right': self.size}[self._anchor_x]
+        btn_y = self._y - {'bottom': 0, 'center': half, 'top': self.size}[self._anchor_y]
         
-    def execute(self, cmd):
-        '''Исполнитель команд'''
-        print(f'Была вызванна команда: <{cmd}>')
+        if (btn_x <= x <= btn_x + self.size and 
+            btn_y <= y <= btn_y + self.size):
+            self.checked = not self.checked
+            for line in self.check_vertices:
+                line.visible = self.checked
+            return True
+        return False
+    
+    def get(self):
+        return self.checked
+    
+    def draw(self):
+        if not self.vertices:
+            self._create_shape()
+        self.batch.draw()
 
-    def get_record(self):
-        return self.ctx
-    
-    def notify(self, **kwargs):
-        self.ctx.update(kwargs['ctx'])
-        if (task:=kwargs.get("on_mouse_motion")):
-            self.on_mouse_motion(*task)
-    
-   
-
-class SceneConstructor:
-    TYPE_OF_THE_SCENE_CONFIGURATION_FILE = 'xml'
-    
-    def __init__(self, window):
-        self.window = window
-    
-    def construct_scene(self, path, scene=Scene):
-        root = self.load(path)
-        self.scene = scene(self.window)
-        self.units = []
-        self.create_units(root)
-        self.scene.attach(self.units)
-        return self.scene
-    
-    def load(self, path):
-        if self.TYPE_OF_THE_SCENE_CONFIGURATION_FILE == 'xml':
-            return self.load_from_xml(path)
-            
-    
-    def load_from_xml(self, path):
-        """Загружает описание меню из XML файла"""
-        tree = ET.parse(path)
-        return tree.getroot()
-
-    def create_units(self, root):
-        """Создание юнитов из сцены"""
-        if self.TYPE_OF_THE_SCENE_CONFIGURATION_FILE == 'xml':
-            self.create_units_from_xml(root)
-            
-    def create_units_from_xml(self, root, ctx=None):
+class Entry(TextUIElement):
+    """Поле ввода текста с улучшенным управлением"""
+    def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
+        super().__init__(element, extra=extra, ctx=ctx)
         
-        if ctx is None:
-            ctx = {
-                'vw': self.window.width,
-                'vh': self.window.height
-                    }
+        self.maxlen = int(element.get('maxlen', ctx.get('maxlen', '32')))
+        self.hover_color = self._parse_color(
+            element.get('hover_color', ctx.get('hover_color', '#00ff00'))
+        )
+        self.frame_color = self._parse_color(
+            element.get('frame_color', ctx.get('frame_color', '#666666'))
+        )
         
-        for child in root:
-            child_ctx = ctx.copy()
-            size = child.get('size')
-            if size is not None:
-                child_ctx['em'] = str(UIElement._parse_expression(size, child_ctx))
+        self.active = False
+        self.cursor_visible = True
+        self.cursor_blink = 0.5
+        self.cursor_timer = 0
+        self.cursor_pos = len(self.label.text)
+        
+        # Для обработки зажатых клавиш
+        self.key_repeat_delay = 0.5  # Задержка перед повтором
+        self.key_repeat_interval = 0.05  # Интервал повтора
+        self.key_repeat_timer = 0
+        self.key_held = None  # Какая клавиша зажата
+        
+        # Линия будет растягиваться под максимальный текст
+        self.line_width = self._calculate_max_line_width()
+        self.line = pyglet.shapes.Line(
+            self._x - self.line_width/2, 
+            self._y - self.label.content_height/2,
+            self._x + self.line_width/2,
+            self._y - self.label.content_height/2,
+            2, color=self.frame_color
+        )
+        self._update_cursor()
+        
+    def _calculate_max_line_width(self):
+        """Вычисляет ширину линии для максимально возможного текста"""
+        test_label = pyglet.text.Label(
+            'W' * self.maxlen,  # 'W' - обычно самый широкий символ
+            font_name=self.label.font_name,
+            font_size=self.label.font_size,
+            x=self._x,
+            y=self._y,
+            anchor_x='center',
+            anchor_y='center'
+        )
+        return test_label.content_width
+        
+    def on_mouse_press(self, x, y, button, modifiers):
+        # Активируем при клике в области элемента (учитываем высоту текста)
+        text_height = self.label.content_height/2
+        text_half_width = self.line_width/2
+        
+        self.active = (
+            abs(x - self._x) < text_half_width and 
+            abs(y - self._y) < text_height
+        )
+        
+        if self.active:
+            rel_x = x - (self._x - self.label.content_width/2)
+            self.cursor_pos = min(len(self.label.text), max(0, int(rel_x / (self.label.content_width / max(1, len(self.label.text))))))
+            self._update_cursor()
             
-            if child.tag == 'link':
-                if style:=child.get('style'):
-                    ctx.update(self.load_style_from_json(style))
-                    print(ctx)
-
-            self.create_unit_from_xml(child, ctx)
-            
-            if child.tag == 'list':
-                for index, child_li in enumerate(child):
-                    li_ctx = {**child_ctx, **child.attrib}
-                    li_ctx['y'] = li_ctx['y'] + f'- {index}*({li_ctx['pady']})'
-                    self.create_unit_from_xml(child_li, li_ctx)
-                return
-            
-            self.create_units_from_xml(child, {**ctx, **child_ctx, **child.attrib})
-            
-    def create_unit_from_xml(self, elem, ctx):
-        child = elem
-        if child.tag == 'text':
-            self.units.append(TextUIElement(child, ctx=ctx))
+        self.line.color = self.hover_color if self.active else self.frame_color
+        return self.active
     
-        elif child.tag == 'button':
-            self.units.append(ButtonUIElement(child, ctx=ctx, extra={'scene': self.scene}))
-
+    def on_text(self, text):
+        if not self.active:
+            return
+            
+        current = self.label.text
+        
+        if text == '\r':  # Enter
+            self.active = False
+            self.line.color = self.frame_color
+        elif text == '\x08':  # Backspace
+            self._handle_backspace()
+        elif len(current) < self.maxlen and text.isprintable():
+            self.label.text = current[:self.cursor_pos] + text + current[self.cursor_pos:]
+            self.cursor_pos += 1
+            
+        self._update_cursor()
+        
+    def _handle_backspace(self):
+        """Обработка backspace с возможностью зажатия"""
+        if self.cursor_pos > 0:
+            current = self.label.text
+            self.label.text = current[:self.cursor_pos-1] + current[self.cursor_pos:]
+            self.cursor_pos -= 1
+            return True
+        return False
+        
+    def _handle_delete(self):
+        """Обработка delete с возможностью зажатия"""
+        if self.cursor_pos < len(self.label.text):
+            current = self.label.text
+            self.label.text = current[:self.cursor_pos] + current[self.cursor_pos+1:]
+            return True
+        return False
+        
+    def on_key_press(self, symbol, modifiers):
+        if not self.active:
+            return
+            
+        # Запоминаем нажатую клавишу для повторения
+        if symbol in (pyglet.window.key.BACKSPACE, pyglet.window.key.DELETE,
+                     pyglet.window.key.LEFT, pyglet.window.key.RIGHT):
+            self.key_held = symbol
+            self.key_repeat_timer = self.key_repeat_delay
+            
+        # Обработка однократного нажатия
+        if symbol == pyglet.window.key.LEFT:
+            self.cursor_pos = max(0, self.cursor_pos - 1)
+        elif symbol == pyglet.window.key.RIGHT:
+            self.cursor_pos = min(len(self.label.text), self.cursor_pos + 1)
+        elif symbol == pyglet.window.key.HOME:
+            self.cursor_pos = 0
+        elif symbol == pyglet.window.key.END:
+            self.cursor_pos = len(self.label.text)
+        elif symbol == pyglet.window.key.DELETE:
+            self._handle_delete()
+        elif symbol == pyglet.window.key.BACKSPACE:
+            self._handle_backspace()
+            
+        self._update_cursor()
+        
+    def on_key_release(self, symbol, modifiers):
+        # Сбрасываем зажатую клавишу
+        if symbol == self.key_held:
+            self.key_held = None
+            
+    def _update_cursor(self):
+        # Вычисляем позицию курсора на основе текущего текста и позиции
+        if len(self.label.text) == 0:
+            text_before_cursor = ""
+        else:
+            text_before_cursor = self.label.text[:self.cursor_pos]
+            
+        # Создаем временный label для измерения ширины текста до курсора
+        temp_label = pyglet.text.Label(
+            text_before_cursor,
+            font_name=self.label.font_name,
+            font_size=self.label.font_size,
+            x=self._x - self.label.content_width/2,
+            y=self._y,
+            anchor_x='left',
+            anchor_y='center'
+        )
+        
+        self.cursor_x = self._x - self.label.content_width/2 + temp_label.content_width
+        self.cursor_y = self._y
+        self.cursor_timer = 0
+        self.cursor_visible = True
+    def update(self, dt):
+        if not self.active:
+            return
+            
+        # Обновление мигания курсора
+        self.cursor_timer += dt
+        if self.cursor_timer >= self.cursor_blink:
+            self.cursor_timer = 0
+            self.cursor_visible = not self.cursor_visible
+            
+        # Обработка зажатых клавиш
+        if self.key_held is not None:
+            self.key_repeat_timer -= dt
+            if self.key_repeat_timer <= 0:
+                self.key_repeat_timer = self.key_repeat_interval
+                
+                if self.key_held == pyglet.window.key.BACKSPACE:
+                    if not self._handle_backspace():
+                        self.key_held = None
+                elif self.key_held == pyglet.window.key.DELETE:
+                    if not self._handle_delete():
+                        self.key_held = None
+                elif self.key_held == pyglet.window.key.LEFT:
+                    if self.cursor_pos > 0:
+                        self.cursor_pos -= 1
+                    else:
+                        self.key_held = None
+                elif self.key_held == pyglet.window.key.RIGHT:
+                    if self.cursor_pos < len(self.label.text):
+                        self.cursor_pos += 1
+                    else:
+                        self.key_held = None
+                
+                self._update_cursor()
+                
+    def draw(self):
+        super().draw()
+        self.line.draw()
+        
+        if self.active and self.cursor_visible:
+            pyglet.shapes.Line(
+                self.cursor_x, self._y - self.label.content_height/2,
+                self.cursor_x, self._y + self.label.content_height/2,
+                2, color=self.color
+            ).draw()
     
-    def load_style_from_json(self, style):
-        with open(style, 'r') as file:
-            return json.load(file)
+    def get(self):
+        return self.label.text
+
+class RangeSlider(UIElement):
+    """Ползунок для выбора значений"""
+    def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
+        super().__init__(element, extra=extra, ctx=ctx)
+        
+        self.width = self._parse_expression(element.get('width', ctx.get('width', '200px')), ctx)
+        self.height = self._parse_expression(element.get('height', ctx.get('height', '5px')), ctx)
+        self.thumb_radius = self._parse_expression(
+            element.get('thumb_radius', ctx.get('thumb_radius', '10px')), ctx
+        )
+        
+        self.frame_color = self._parse_color(
+            element.get('frame_color', ctx.get('frame_color', '#666666'))
+        )
+        self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
+        self.hover_color = self._parse_color(
+            element.get('hover_color', ctx.get('hover_color', '#00ff00'))
+        )
+        
+        self.value = 0.5  # 0.0-1.0
+        self.dragging = False
+        self.hovered = False
+        
+    def on_mouse_press(self, x, y, button, modifiers):
+        thumb_x = self._x - self.width/2 + self.value * self.width
+        distance = ((x - thumb_x) ** 2 + (y - self._y) ** 2) ** 0.5
+        if distance <= self.thumb_radius:
+            self.dragging = True
+            return True
+        return False
+    
+    def on_mouse_release(self, x, y, button, modifiers):
+        self.dragging = False
+        return False
+    
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if self.dragging:
+            relative_x = max(0, min(x - (self._x - self.width/2), self.width))
+            self.value = relative_x / self.width
+            return True
+        return False
+    
+    def on_mouse_motion(self, x, y, dx, dy):
+        thumb_x = self._x - self.width/2 + self.value * self.width
+        self.hovered = ((x - thumb_x) ** 2 + (y - self._y) ** 2) ** 0.5 <= self.thumb_radius
+        
+    def get(self):
+        return self.value
+    
+    def draw(self):
+        # Линия слайдера
+        pyglet.shapes.Line(
+            self._x - self.width/2, self._y,
+            self._x + self.width/2, self._y,
+            self.height, color=self.frame_color
+        ).draw()
+        
+        # Ползунок
+        thumb_x = self._x - self.width/2 + self.value * self.width
+        color = self.hover_color if self.hovered or self.dragging else self.color
+        
+        pyglet.shapes.Circle(
+            thumb_x, self._y, self.thumb_radius,
+            color=color
+        ).draw()
+
+
+class SelectorInRow(UIElement):
+    """Переключатель опций"""
+    def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
+        super().__init__(element, extra=extra, ctx=ctx)
+        
+        self.options = element.get('options', '').split('|')
+        self.index = int(element.get('default', ctx.get('default', '0')))
+        self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
+        self.hover_color = self._parse_color(
+            element.get('hover_color', ctx.get('hover_color', '#00ff00'))
+        )
+        
+        self.arrow_size = self._parse_expression(
+            element.get('arrow_size', ctx.get('arrow_size', '1em')), ctx
+        )
+        
+        self.left_hover = False
+        self.right_hover = False
+        self.label = pyglet.text.Label(
+            text=self.options[self.index],
+            font_name=element.get('font', ctx.get('font', 'Arial')),
+            font_size=self._parse_expression(element.get('size', ctx.get('size', '20')), ctx),
+            color=self.color,
+            x=self._x,
+            y=self._y,
+            anchor_x='center',
+            anchor_y='center'
+        )
+        
+    def on_mouse_press(self, x, y, button, modifiers):
+        if self.left_hover:
+            self.index = (self.index - 1) % len(self.options)
+            self.label.text = self.options[self.index]
+            return True
+            
+        if self.right_hover:
+            self.index = (self.index + 1) % len(self.options)
+            self.label.text = self.options[self.index]
+            return True
+            
+        return False
+    
+    def on_mouse_motion(self, x, y, dx, dy):
+        # Проверка левой стрелки
+        left_triangle = [
+            (self._x - self.label.content_width/2 - self.arrow_size, self._y),
+            (self._x - self.label.content_width/2, self._y + self.arrow_size/2),
+            (self._x - self.label.content_width/2, self._y - self.arrow_size/2)
+        ]
+        self.left_hover = self._point_in_triangle((x, y), left_triangle)
+        
+        # Проверка правой стрелки
+        right_triangle = [
+            (self._x + self.label.content_width/2 + self.arrow_size, self._y),
+            (self._x + self.label.content_width/2, self._y + self.arrow_size/2),
+            (self._x + self.label.content_width/2, self._y - self.arrow_size/2)
+        ]
+        self.right_hover = self._point_in_triangle((x, y), right_triangle)
+    
+    def _point_in_triangle(self, point, triangle):
+        """Проверяет, находится ли точка внутри треугольника"""
+        x, y = point
+        x1, y1 = triangle[0]
+        x2, y2 = triangle[1]
+        x3, y3 = triangle[2]
+        
+        # Вычисляем площади
+        area = 0.5 * abs((x2-x1)*(y3-y1) - (x3-x1)*(y2-y1))
+        area1 = 0.5 * abs((x1-x)*(y2-y) - (x2-x)*(y1-y))
+        area2 = 0.5 * abs((x2-x)*(y3-y) - (x3-x)*(y2-y))
+        area3 = 0.5 * abs((x3-x)*(y1-y) - (x1-x)*(y3-y))
+        
+        return abs(area - (area1 + area2 + area3)) < 0.1
+    
+    def get(self):
+        return (self.index, self.options[self.index])
+    
+    def draw(self):
+        # Левая стрелка
+        left_color = self.hover_color if self.left_hover else self.color
+        left_arrow = pyglet.shapes.Triangle(
+            x=self._x - self.label.content_width/2 - self.arrow_size, y=self._y,
+            x2=self._x - self.label.content_width/2, y2=self._y + self.arrow_size/2,
+            x3=self._x - self.label.content_width/2, y3=self._y - self.arrow_size/2,
+            color=left_color[:3]
+        )
+        left_arrow.draw()
+
+        # Правая стрелка
+        right_color = self.hover_color if self.right_hover else self.color
+        right_arrow = pyglet.shapes.Triangle(
+            x=self._x + self.label.content_width/2 + self.arrow_size, y=self._y,
+            x2=self._x + self.label.content_width/2, y2=self._y - self.arrow_size/2,
+            x3=self._x + self.label.content_width/2, y3=self._y + self.arrow_size/2,
+            color=right_color[:3]
+        )
+        right_arrow.draw()
+        
+        # Текст
+        self.label.draw()

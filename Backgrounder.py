@@ -1,7 +1,6 @@
 import numpy as np
 from PIL import Image
 import pyglet
-import PIL
 
 
 class Backgrounder:
@@ -99,7 +98,7 @@ class Backgrounder:
                 raise ValueError(f"Unsupported gradient type: {bg_type}")
         
         img = Image.fromarray(img_array, 'RGB')
-        img = img.transpose(PIL.Image.FLIP_TOP_BOTTOM)
+        img = img.transpose(Image.FLIP_TOP_BOTTOM)
         self._texture = pyglet.image.ImageData(
             width, height, 'RGB', img.tobytes())
         

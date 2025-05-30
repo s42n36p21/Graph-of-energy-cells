@@ -56,7 +56,18 @@ class Game(pyglet.window.Window):
         data = self.scene.get_record()
         new_scene.notify(ctx={"prev_scene": self.scene}, **data)
         self.scene = new_scene
+    
+    def on_text(self, text):
+        self.scene.on_text(text)
+    
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        self.scene.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+    
+    def on_mouse_release(self, x, y, button, modifiers):
+        self.scene.on_mouse_release(x, y, button, modifiers)
 
+    def on_key_release(self, symbol, modifiers):
+        self.scene.on_key_release(symbol, modifiers)
 
 if __name__ == "__main__":
     app = Game()
