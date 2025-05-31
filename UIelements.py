@@ -131,21 +131,26 @@ class TextUIElement(UIElement):
             self.label.draw()
 
 class ColorManager:
-    def __init__(self, owner: 'ButtonUIElement', start_color, stop_color, step=15, disable_color=None, active=True):
+    def __init__(self, owner: 'ButtonUIElement', start_color, stop_color, step=15, disable_color=None, active=True, check_hover=None):
         self.start_color = start_color
         self.stop_color = stop_color
         self.step = step
         self.progress = 0
         self.owner = owner
+        
+        if check_hover is None:
+            self.check_hover = lambda: self.owner.is_hovered
+        else:
+            self.check_hover = check_hover
 
         self.disable_color = disable_color
         self.active = True
-        
+    
     def update(self):
         if not self.active:
             self.owner.label.color = self.disable_color
             return
-        if self.owner.is_hovered:
+        if self.check_hover():
             d = 1
         else:
             d = -1
@@ -153,8 +158,10 @@ class ColorManager:
         self.progress = max(0, min(self.progress+d, self.step))
         
         dist = self.progress / self.step
-        self.owner.label.color = tuple([int((1-dist)*st + sp*dist) for st, sp in zip(self.start_color, self.stop_color)])
-
+        try:
+            self.owner.label.color = tuple([int((1-dist)*st + sp*dist) for st, sp in zip(self.start_color, self.stop_color)])
+        except: pass
+        return tuple([int((1-dist)*st + sp*dist) for st, sp in zip(self.start_color, self.stop_color)])
     def set_active(self, active):
         self.active = active
 
@@ -208,16 +215,25 @@ class OutlinedRectangle:
 
         
         # Создаем 4 линии для контура прямоугольника
+        d = border/2
         self.lines = [
             # Нижняя линия
-            pyglet.shapes.Line(x, y, x + width, y, border, border_color, batch=batch),
+            pyglet.shapes.Line(x-d, y, x + width+d, y, border, border_color, batch=batch),
             # Правая линия
             pyglet.shapes.Line(x + width, y, x + width, y + height, border, border_color, batch=batch),
             # Верхняя линия
-            pyglet.shapes.Line(x + width, y + height, x, y + height, border, border_color, batch=batch),
+            pyglet.shapes.Line(x+d + width, y + height, x-d, y + height, border, border_color, batch=batch),
             # Левая линия
             pyglet.shapes.Line(x, y + height, x, y, border, border_color, batch=batch)
         ]
+        self.color = border_color
+    @property
+    def color(self):
+        return self.color
+    @color.setter
+    def color(self, color):
+        for line in self.lines:
+            line.color = color
     
     def draw(self):
         """Метод для отрисовки прямоугольника"""
@@ -233,6 +249,8 @@ class CheckButton(UIElement):
         self.frame_color = self._parse_color(element.get('frame_color', ctx.get('frame_color', '#ffffff')))
         self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
         self.checked = False
+        hover_color = self._parse_color(element.get('hover_color', ctx.get('hover_color', '#ffffff')))
+        self.frame_color_manager = ColorManager(self, self.frame_color, hover_color)
         
         self.batch = pyglet.graphics.Batch()
         self.vertices = []
@@ -245,7 +263,7 @@ class CheckButton(UIElement):
         
         # Прямоугольник
         self.vertices = OutlinedRectangle(
-            x, y, self.size, self.size, 5, color=(0,0,0,0), 
+            x, y, self.size, self.size, 1.5*self.size/10, color=(0,0,0,0), 
             border_color=self.frame_color, batch=self.batch
         )
         
@@ -259,23 +277,29 @@ class CheckButton(UIElement):
         x3, y3 =  abs_x + 4*size / 5, abs_y + 4*size / 5 - dy
         
         # Галочка (скрыта по умолчанию)
+        d = dy/4*(2**.5)
+            
         self.check_vertices = [
-            pyglet.shapes.Line(x1,y1,x2+2,y2-2,
-                                5, color=self.color, batch=self.batch),
+            pyglet.shapes.Line(x1,y1,x2+d,y2-d,
+                                dy, color=self.color, batch=self.batch),
             pyglet.shapes.Line(x2,y2,x3,y3,
-                                5, color=self.color, batch=self.batch)
+                                dy, color=self.color, batch=self.batch)
         ]
         
         for line in self.check_vertices:
             line.visible = self.checked
-        
-    def on_mouse_press(self, x, y, button, modifiers):
+    
+    def on_mouse_motion(self, x, y, dx, dy):
         half = self.size / 2
         btn_x = self._x - {'left': 0, 'center': half, 'right': self.size}[self._anchor_x]
         btn_y = self._y - {'bottom': 0, 'center': half, 'top': self.size}[self._anchor_y]
+    
+        self.is_hovered = (btn_x <= x <= btn_x + self.size and 
+            btn_y <= y <= btn_y + self.size)
+    
+    def on_mouse_press(self, x, y, button, modifiers):
         
-        if (btn_x <= x <= btn_x + self.size and 
-            btn_y <= y <= btn_y + self.size):
+        if self.is_hovered:
             self.checked = not self.checked
             for line in self.check_vertices:
                 line.visible = self.checked
@@ -288,6 +312,7 @@ class CheckButton(UIElement):
     def draw(self):
         if not self.vertices:
             self._create_shape()
+        self.vertices.color = self.frame_color_manager.update()
         self.batch.draw()
 
 class Entry(TextUIElement):
@@ -515,9 +540,11 @@ class RangeSlider(UIElement):
             element.get('hover_color', ctx.get('hover_color', '#00ff00'))
         )
         
+        self.color_manager = ColorManager(self, self.color, self.hover_color)
+        
         self.value = 0.5  # 0.0-1.0
         self.dragging = False
-        self.hovered = False
+        self.is_hovered = False
         
     def on_mouse_press(self, x, y, button, modifiers):
         thumb_x = self._x - self.width/2 + self.value * self.width
@@ -540,7 +567,7 @@ class RangeSlider(UIElement):
     
     def on_mouse_motion(self, x, y, dx, dy):
         thumb_x = self._x - self.width/2 + self.value * self.width
-        self.hovered = ((x - thumb_x) ** 2 + (y - self._y) ** 2) ** 0.5 <= self.thumb_radius
+        self.is_hovered = ((x - thumb_x) ** 2 + (y - self._y) ** 2) ** 0.5 <= self.thumb_radius
         
     def get(self):
         return self.value
@@ -565,7 +592,7 @@ class RangeSlider(UIElement):
         
         # Ползунок
         thumb_x = self._x - self.width/2 + self.value * self.width
-        color = self.hover_color if self.hovered or self.dragging else self.color
+        color = self.color_manager.update()
         
         pyglet.shapes.Circle(
             thumb_x, self._y, self.thumb_radius,
@@ -594,6 +621,9 @@ class SelectorInRow(UIElement):
         
         self.left_hover = False
         self.right_hover = False
+        self.color_right = ColorManager(self,self.color,self.hover_color, check_hover=lambda: self.right_hover)
+        self.color_left = ColorManager(self,self.color,self.hover_color, check_hover=lambda: self.left_hover)
+        
         self.label = pyglet.text.Label(
             text=self.options[self.index],
             font_name=element.get('font', ctx.get('font', 'Arial')),
@@ -678,7 +708,7 @@ class SelectorInRow(UIElement):
             x=self._x  - self.label.font_size- self.max_width/2- self.arrow_size, y=self._y,
             x2=self._x - self.label.font_size - self.max_width/2, y2=self._y + self.arrow_size/2,
             x3=self._x - self.label.font_size - self.max_width/2, y3=self._y - self.arrow_size/2,
-            color=left_color[:3]
+            color=self.color_left.update()
         )
         left_arrow.draw()
 
@@ -688,9 +718,9 @@ class SelectorInRow(UIElement):
             x=self._x  + self.label.font_size+ self.max_width/2 + self.arrow_size, y=self._y,
             x2=self._x + self.label.font_size +self.max_width/2, y2=self._y - self.arrow_size/2,
             x3=self._x + self.label.font_size +self.max_width/2, y3=self._y + self.arrow_size/2,
-            color=right_color[:3]
+            color=self.color_right.update()
         )
         right_arrow.draw()
         
-        # Текст
+        self.label.color=self.color
         self.label.draw()

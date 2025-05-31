@@ -2,17 +2,25 @@
 <test-scene>
     <list x="0.5vw" y="0.8vh" anchor_x="center" anchor_y="center" size="60" pady="2em">
         <!-- CheckButton -->
+        <div>
+        <list padx=".3vw" x=".2vw" pady="0" frame_color="#cccccc" hover_color="#848484">
         <checkbutton 
-            size="30px"
-            frame_color="#3498db" 
             color="#11ee11"
         />
-        
+        <checkbutton 
+            size="45px"
+            color="#11ee11"
+        />
+        <checkbutton 
+            size="30px"
+            color="#11ee11"
+        />
+        </list>
+        </div>
         <!-- Entry -->
         <entry 
             text="Введите текст" 
             font="Consolas"
-            size="48px"
             maxlen="20"
             color="#2ecc71"
             hover_color="#f1c40f"
@@ -24,17 +32,17 @@
             width="300px" 
             height="8px"
             thumb_radius="15px"
-            color="#9b59b6"
-            hover_color="#e74c3c"
-            frame_color="#bdc3c7"
+            color="#cccccc"
+            hover_color="#848484"
+            frame_color="#404040"
         />
         
         <!-- SelectorInRow -->
         <selector_in_row 
-            options="В попу|В пизду|В ротик" 
+            options="Выбор|опции|в|строчку" 
             default="1"
-            color="#34495e"
-            hover_color="#e67e22"
+            color="#cccccc"
+            hover_color="#848484"
             arrow_size=".5em"
         />
         
