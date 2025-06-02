@@ -327,16 +327,21 @@ class Entry(TextUIElement):
         self.frame_color = self._parse_color(
             element.get('frame_color', ctx.get('frame_color', '#666666'))
         )
+
+        self.max_size = self.label.font_size
+       
         
         self.active = False
         self.cursor_visible = True
         self.cursor_blink = 0.5
         self.cursor_timer = 0
         self.cursor_pos = len(self.label.text)
+        self.line_color = ColorManager(self, self.frame_color, self.hover_color, check_hover=lambda:self.active)
+
         
         # Для обработки зажатых клавиш
         self.key_repeat_delay = 0.5  # Задержка перед повтором
-        self.key_repeat_interval = 0.05  # Интервал повтора
+        self.key_repeat_interval = 0.025  # Интервал повтора
         self.key_repeat_timer = 0
         self.key_held = None  # Какая клавиша зажата
         
@@ -350,7 +355,8 @@ class Entry(TextUIElement):
             2, color=self.frame_color
         )
         self._update_cursor()
-        
+        self.label.anchor_y = 'bottom'
+        self.label.y -= self.label.content_height//2
     def _calculate_max_line_width(self):
         """Вычисляет ширину линии для максимально возможного текста"""
         test_label = pyglet.text.Label(
@@ -396,12 +402,50 @@ class Entry(TextUIElement):
             self.line.color = self.frame_color
         elif text == '\x08':  # Backspace
             self._handle_backspace()
-        elif len(current) < self.maxlen and text.isprintable():
+        elif  text.isprintable():
             self.label.text = current[:self.cursor_pos] + text + current[self.cursor_pos:]
             self.cursor_pos += 1
-            
+
+        if 1:
+            self.resize_font()
+
+        
         self._update_cursor()
         
+    def resize_font(self):
+        # Создаем временную метку с самым широким символом (W)
+        temp = pyglet.text.Label(
+            'W' * len(self.label.text),  # 'W' - обычно самый широкий символ
+            font_name=self.label.font_name,
+            font_size=self.max_size,
+            x=self._x,
+            y=self._y,
+            anchor_x='center',
+            anchor_y='center'
+        )
+
+        # Если текущий размер уже подходит, ничего не меняем
+        if temp.content_width <= self.line_width:
+            self.label.font_size = self.max_size
+            return
+
+        # Бинарный поиск оптимального размера шрифта
+        low = 1
+        high = self.max_size
+        best_size = low
+
+        while low <= high:
+            mid = (low + high) // 2
+            temp.font_size = mid
+            
+            if temp.content_width <= self.line_width:
+                best_size = mid
+                low = mid + 1  # Пробуем найти размер побольше
+            else:
+                high = mid - 1  # Нужен меньший размер
+
+        self.label.font_size = best_size
+
     def _handle_backspace(self):
         """Обработка backspace с возможностью зажатия"""
         if self.cursor_pos > 0:
@@ -443,7 +487,9 @@ class Entry(TextUIElement):
         elif symbol == pyglet.window.key.BACKSPACE:
             self._handle_backspace()
             
+        self.resize_font()
         self._update_cursor()
+        
         
     def on_key_release(self, symbol, modifiers):
         # Сбрасываем зажатую клавишу
@@ -504,18 +550,22 @@ class Entry(TextUIElement):
                         self.cursor_pos += 1
                     else:
                         self.key_held = None
-                
+                self.resize_font()
                 self._update_cursor()
                 
     def draw(self):
-        super().draw()
+        
+        self.line.color = self.line_color.update()
         self.line.draw()
+
+        self.label.color = self.color
+        super().draw()
         
         if self.active and self.cursor_visible:
             pyglet.shapes.Line(
-                self.cursor_x, self._y - self.label.content_height/2,
-                self.cursor_x, self._y + self.label.content_height/2,
-                2, color=self.color
+                self.cursor_x, self.label.y + 4,
+                self.cursor_x, self.label.y + self.label.content_height - 4,
+                2, color=self.label.color
             ).draw()
     
     def get(self):
