@@ -136,19 +136,19 @@ class BoxModel:
             case 'top':
                 new_y = self.top - other.bottom + indent
                 if align == 'center':
-                    align += '_y'
+                    align += '_x'
             case 'bottom':
                 new_y = self.bottom - other.top - indent
                 if align == 'center':
-                    align += '_y'
+                    align += '_x'
             case 'left':
                 new_x = self.left - other.right - indent
                 if align == 'center':
-                    align += '_x'
+                    align += '_y'
             case 'right':
                 new_x = self.right - other.left + indent
                 if align == 'center':
-                    align += '_x'
+                    align += '_y'
             case _:
                 raise ValueError(
                     f"Invalid side: {side}. Must be 'top', 'bottom', 'left', or 'right'"
@@ -218,6 +218,14 @@ class BoxModel:
         """Get the center y-coordinate."""
         return self._y - self.anchor_y + self._height / 2
     
+    @property
+    def width(self):
+        return self._width
+    
+    @property
+    def height(self):
+        return self._height
+    
     def copy(self) -> 'BoxModel':
         """Create a copy of this BoxModel without an owner."""
         return BoxModel(
@@ -229,3 +237,126 @@ class BoxModel:
             anchor_x=self._anchor_x,
             anchor_y=self._anchor_y
         )
+    
+    def dict(self):
+        return dict(
+            owner=self.owner,
+            x=self._x,
+            y=self._y,
+            width=self._width,
+            height=self._height,
+            anchor_x=self._anchor_x,
+            anchor_y=self._anchor_y
+        )
+        
+class WrapBox(BoxModel):
+    """
+    A BoxModel that wraps another BoxModel with specified gaps (padding/margin).
+    
+    The gaps can be specified in CSS-style shorthand (1-4 values):
+    - 1 value: uniform gap for all sides
+    - 2 values: vertical and horizontal gaps
+    - 3 values: top, horizontal, bottom
+    - 4 values: top, right, bottom, left
+    
+    Attributes:
+        owner: The BoxModel being wrapped.
+        gaps: The gap values for each side (top, right, bottom, left).
+    """
+    
+    def __init__(self, owner: BoxModel, gaps):
+        """
+        Initialize the WrapBox with an owner and gap values.
+        
+        Args:
+            owner: The BoxModel to wrap.
+            gaps: The gap values (1-4 values in CSS shorthand style).
+            
+        Raises:
+            ValueError: If gaps has invalid number of values (not 1-4).
+        """
+        gap_count = len(gaps)
+        if gap_count == 1:
+            gaps = gaps * 4  
+        elif gap_count == 2:
+            gaps = gaps * 2  
+        elif gap_count == 3:
+            gaps = gaps + (gaps[1],)  
+        elif gap_count != 4:
+            raise ValueError('Gaps must have 1-4 values')
+            
+        super().__init__(auto_move=True, **(owner.dict()))
+        self.owner = owner
+        
+        self._width += sum(gaps[1::2])
+        self._height += sum(gaps[0::2])  
+
+        self._x += owner.left - self.left - gaps[3]  
+        self._y += owner.bottom - self.bottom - gaps[0]  
+
+
+class PaddingBox(WrapBox):
+    """
+    A WrapBox that represents padding around an element.
+    
+    When placing elements inside, delegates to the owner's placement.
+    """
+    
+    def place_inside(self, other: BoxModel, align_x: str = 'center', align_y: str = 'center'):
+        """
+        Place another box inside this padding box by delegating to the owner.
+        
+        Args:
+            other: The BoxModel to place inside.
+            align_x: Horizontal alignment ('center', 'left', 'right', etc.)
+            align_y: Vertical alignment ('center', 'top', 'bottom', etc.)
+        """
+        self.owner.place_inside(other, align_x, align_y)
+
+
+class MarginBox(PaddingBox):
+    """
+    A PaddingBox that represents margins around an element.
+    
+    Handles special margin collapsing behavior when placing boxes beside each other.
+    """
+    
+    def place_beside(self, other: BoxModel, side: str, indent: float = 0, align: str = 'center'):
+        """
+        Place another box beside this one with margin collapsing behavior.
+        
+        When two MarginBoxes are placed adjacent, their margins collapse according to CSS rules.
+        
+        Args:
+            other: The BoxModel to place beside.
+            side: The side to place on ('top', 'bottom', 'left', 'right').
+            indent: Additional spacing between the boxes.
+            align: The alignment type ('center', 'center_x', 'center_y').
+        """
+        super().place_beside(other, side, indent, align)
+        
+        if isinstance(other, MarginBox):
+            match side:
+                case 'top':
+                    self_margin = self.top - self.owner.top
+                    other_margin = other.owner.bottom - other.bottom
+                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    other.move(0, adjustment)
+                    
+                case 'bottom':
+                    self_margin = self.owner.bottom - self.bottom
+                    other_margin = other.top - other.owner.top
+                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    other.move(0, adjustment)
+                    
+                case 'left':
+                    self_margin = self.owner.left - self.left
+                    other_margin = other.right - other.owner.right
+                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    other.move(adjustment, 0)
+                    
+                case 'right':
+                    self_margin = self.right - self.owner.right
+                    other_margin = other.owner.left - other.left
+                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    other.move(adjustment, 0)
