@@ -1,3 +1,5 @@
+from parsers import parse_expression, get_param, parse_gap
+
 class BoxModel:
     """
     A class representing a box model for positioning and aligning rectangular elements.
@@ -346,13 +348,13 @@ class MarginBox(PaddingBox):
                 case 'bottom':
                     self_margin = self.owner.bottom - self.bottom
                     other_margin = other.top - other.owner.top
-                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    adjustment = +(self_margin + other_margin) - max(self_margin, other_margin)
                     other.move(0, adjustment)
                     
                 case 'left':
                     self_margin = self.owner.left - self.left
                     other_margin = other.right - other.owner.right
-                    adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
+                    adjustment = +(self_margin + other_margin) - max(self_margin, other_margin)
                     other.move(adjustment, 0)
                     
                 case 'right':
@@ -360,3 +362,49 @@ class MarginBox(PaddingBox):
                     other_margin = other.owner.left - other.left
                     adjustment = -(self_margin + other_margin) + max(self_margin, other_margin)
                     other.move(adjustment, 0)
+
+class UIBox(MarginBox):
+    """
+    A composite box model representing a UI element with content, padding, and margin.
+    
+    This class combines multiple BoxModel layers to create a complete UI element:
+    - Content box (innermost)
+    - Padding box (wraps content)
+    - Margin box (outermost, wraps padding)
+    
+    Attributes:
+        content (BoxModel): The innermost content box representing the element's content area.
+        padding (PaddingBox): The padding area around the content.
+        margin (MarginBox): The margin area around the padding (inherits from MarginBox).
+    """
+    
+    def __init__(self, owner, element, properties):
+        """
+        Initialize the UIBox with content, padding, and margin from element properties.
+        
+        Args:
+            owner: The owner/parent element that will be notified of movements.
+            element: The UI element containing the properties.
+            properties: Dictionary of properties for the element.
+        """
+        # Initialize content box with parsed properties
+        self.content = BoxModel(
+            owner=owner,
+            x=parse_expression(get_param('x', element, properties, 0), properties),
+            y=parse_expression(get_param('y', element, properties, 0), properties),
+            width=parse_expression(get_param('width', element, properties, 0), properties),
+            height=parse_expression(get_param('height', element, properties, 0), properties),
+            anchor_x=parse_expression(get_param('anchor_x', element, properties, 'center'), properties),
+            anchor_y=parse_expression(get_param('anchor_y', element, properties, 'center'), properties),
+            auto_move=True
+        )
+        
+        # Create padding box around the content
+        padding = parse_gap(element, properties, 'padding')
+        self.padding = PaddingBox(self.content, padding)
+        
+        # Create margin box around the padding (super() calls MarginBox.__init__)
+        margin = parse_gap(element, properties, 'margin')
+        super().__init__(self.padding, margin)
+
+
