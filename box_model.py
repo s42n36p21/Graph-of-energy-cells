@@ -387,7 +387,6 @@ class UIBox(MarginBox):
             element: The UI element containing the properties.
             properties: Dictionary of properties for the element.
         """
-        # Initialize content box with parsed properties
         self.content = BoxModel(
             owner=owner,
             x=parse_expression(get_param('x', element, properties, 0), properties),
@@ -399,11 +398,9 @@ class UIBox(MarginBox):
             auto_move=True
         )
         
-        # Create padding box around the content
         padding = parse_gap(element, properties, 'padding')
         self.padding = PaddingBox(self.content, padding)
         
-        # Create margin box around the padding (super() calls MarginBox.__init__)
         margin = parse_gap(element, properties, 'margin')
         super().__init__(self.padding, margin)
 

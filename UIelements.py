@@ -1,7 +1,7 @@
 import re
 from typing import Any, Dict, Tuple
 import xml.etree.ElementTree as ET
-
+from box_model import *
 import pyglet
 
 class SceneEvents:
@@ -48,7 +48,7 @@ class SceneEvents:
         """Обновление элемента"""
 
 class UIElement(SceneEvents):
-    '''Базовый UIElement'''
+    '''Базовый UIElement с поддержкой BoxModel'''
     def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
         x = element.get('x', ctx.get('x', '0.5vw'))
         y = element.get('y', ctx.get('y', '0.5vh'))
@@ -60,6 +60,18 @@ class UIElement(SceneEvents):
         self._anchor_x = anchor_x
         self._anchor_y = anchor_y
         self._visible = True
+        
+        # Инициализация BoxModel
+        self.box = BoxModel(
+            owner=self,
+            x=self._x,
+            y=self._y,
+            width=self._parse_expression(element.get('width', ctx.get('width', '100px')), ctx), 
+            height=self._parse_expression(element.get('height', ctx.get('height', '100px')), ctx),
+            anchor_x=anchor_x,
+            anchor_y=anchor_y,
+            auto_move=True
+        )
     
     @staticmethod
     def _parse_color(color_hex: str) -> Tuple[int, int, int, int]:
@@ -104,32 +116,51 @@ class UIElement(SceneEvents):
     def set_unvisible(self):
         self._visible = False
         
+    def move(self, dx: float, dy: float):
+        """Метод для обработки перемещения от BoxModel"""
+        self._x += dx
+        self._y += dy
+        self._update_position()
+        
+    def _update_position(self):
+        """Обновление позиции элемента (переопределяется в наследниках)"""
+        pass
+
 class TextUIElement(UIElement):
     """Простой однострочный текст, написанный на экране"""
     def __init__(self, element: ET.Element, extra: Dict=None, ctx: Dict=None):
         super().__init__(element, extra=extra, ctx=ctx)
 
         self.color = self._parse_color(element.get('color', ctx.get('color', '#ffffff')))
+        font_size = self._parse_expression(element.get('size', ctx.get('size', '10')), ctx)
 
         self.label = pyglet.text.Label(
             text=element.get('text', ''),
-            font_name=element.get('font', ctx.get('font', )),
-            font_size=self._parse_expression(element.get('size', ctx.get('size', '10')), ctx),
+            font_name=element.get('font', ctx.get('font', 'Arial')),
+            font_size=font_size,
             color=self.color,
             x=self._x,
             y=self._y,
             anchor_x=self._anchor_x,
             anchor_y=self._anchor_y,
-            weight=element.get('weight', ctx.get('weight', 'normal'))    
-        )
+            weight=element.get('weight', ctx.get('weight', 'normal'))   ) 
+        
+        # Обновляем размеры BoxModel
+        self.box._width = self.label.content_width
+        self.box._height = self.label.content_height
+        
         if not element.get('text', ''):
             self.label.text = ' '
             self.label.text = ''
 
+    def _update_position(self):
+        self.label.x = self._x
+        self.label.y = self._y
+
     def draw(self):
         if self._visible:
             self.label.draw()
-
+            
 class ColorManager:
     def __init__(self, owner: 'ButtonUIElement', start_color, stop_color, step=15, disable_color=None, active=True, check_hover=None):
         self.start_color = start_color
@@ -177,7 +208,7 @@ class ButtonUIElement(TextUIElement):
         self.is_hovered = False
         self.color_manager = ColorManager(self, color, hover_color, disable_color=disable_color)
         
-        self.scene = extra.get('scene')
+        self.scene = None
         self.command = element.get('command')
 
         if element.get('active', ctx.get(element.get('active', 'True'))) == "False":
@@ -774,3 +805,4 @@ class SelectorInRow(UIElement):
         
         self.label.color=self.color
         self.label.draw()
+        

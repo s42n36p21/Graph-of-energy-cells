@@ -4,7 +4,6 @@ from Scene import Scene, SceneConstructor
 
 PATH = 'menu_scene/'
 development_scene = 'dev'
-TEST_SCENE = None
 
 
 class MainMenu(Scene):
@@ -89,4 +88,4 @@ class TesterMenu(EscapeIsExit, WithCancel, Scene):
         return super().execute(cmd)
 
 def get_start_scene(app) -> Scene:
-    return SceneConstructor(app).construct_scene(f'{PATH}main-menu.xml', MainMenu)
+    return SceneConstructor(app).construct_scene(f'{PATH}dev.xml', MainMenu)

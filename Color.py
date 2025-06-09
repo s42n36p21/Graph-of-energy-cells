@@ -327,5 +327,7 @@ class Color:
     
     def __repr__(self):
         return f"Color(hex='{self.hex}', rgb={self.rgb_abs}, hsv={self.hsv_abs})"
-
+    
+    def copy(self):
+        return Color(self.hex)
 

@@ -1,0 +1,29 @@
+{
+    "version": "v0.1-dev",
+    "debug": true,
+
+    "default_settings": {
+        "graphics": {
+            "background": {
+                "type": "radial",
+                "start_color": "#202020",
+                "stop_color": "#000000",
+                "angle": 0
+            }   
+        },
+
+        "interface": {
+            "size": "normal"
+        },
+
+        "audio": {
+            "music": [true, 1.0],
+            "sound": [true, 1.0]
+        },
+
+        "other": {
+            "supported_languages": ["ru"],
+            "language": "ru"
+        }
+    }
+}

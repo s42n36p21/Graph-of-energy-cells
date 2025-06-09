@@ -2,7 +2,7 @@ from box_model import UIBox
 import pyglet
 import colorsys
 from Background import Background
-from ColorManager import ColorMamager
+from Color import ColorMamager
 from parsers import *
 
 class UIEvents:

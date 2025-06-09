@@ -3,16 +3,6 @@ import re
 def get_param(property, element, propertys, default=None):
     return element.get(property, propertys.get(property, default))
 
-def parse_color(color_hex: str):
-    """Преобразует hex-цвет в tuple (R, G, B, A)"""
-    color_hex = color_hex.lstrip('#')
-    r = int(color_hex[0:2], 16)
-    g = int(color_hex[2:4], 16)
-    b = int(color_hex[4:6], 16)
-    return (r, g, b, 255)
-
-import re
-
 def parse_expression(expression: str, propertys):
     if not isinstance(expression, str):
         return expression
